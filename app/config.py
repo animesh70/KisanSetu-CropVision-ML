@@ -1,4 +1,4 @@
-"""Pinned model identifiers and conservative screening settings."""
+"""Pinned model identifiers and conservative hierarchical screening settings."""
 
 from __future__ import annotations
 
@@ -15,12 +15,17 @@ GATE_REVISION = "7fd15f0689c79d79e38b1c2e2e2370a7bf2761ed"
 DISEASE_MODEL_ID = "Arko007/agromind-plant-disease-mobilenet"
 DISEASE_REVISION = "b7c206b2426711ee9467d3991889448313f462f1"
 
-GATE_MIN_SHARE = 0.46
-GATE_MIN_MARGIN = 0.12
-# Crop naming is a second gate, so prefer an abstention over calling an onion
-# leaf a supported crop from a weak zero-shot match.
-CROP_MIN_SHARE = 0.60
-CROP_MIN_MARGIN = 0.20
+# Separate stages avoid forcing unrelated concepts into one softmax. These are routing
+# heuristics, not user-facing diagnostic confidence values.
+AGRICULTURE_MIN_SHARE = 0.60
+AGRICULTURE_MIN_MARGIN = 0.18
+STATE_MIN_SHARE = 0.58
+STATE_MIN_MARGIN = 0.14
+CROP_MIN_SHARE = 0.58
+CROP_MIN_MARGIN = 0.16
+SCREENABILITY_MIN_SHARE = 0.60
+SCREENABILITY_MIN_MARGIN = 0.14
+
 DISEASE_MIN_SHARE = 0.72
 DISEASE_MIN_MARGIN = 0.20
 

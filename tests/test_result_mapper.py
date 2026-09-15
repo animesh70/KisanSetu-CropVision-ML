@@ -18,7 +18,7 @@ class StubGate:
 
 class StubClassifier:
     model_id = "test-local-leaf"
-    supported_crops = {"Tomato", "Potato"}
+    supported_crops = {"Tomato", "Potato", "Soybean"}
 
     def __init__(self, decision=None):
         self.calls = 0
@@ -31,12 +31,13 @@ class StubClassifier:
         return self.decision
 
 
-def validated_image():
-    return ValidatedImage(Image.new("RGB", (256, 256)), "image/png", False)
+def validated_image(quality_weak=False):
+    return ValidatedImage(Image.new("RGB", (256, 256)), "image/png", quality_weak)
 
 
 def test_non_crop_forces_all_non_applicable_fields_even_with_onion_hint():
-    engine = InferenceEngine(StubGate([GateDecision(image_type="non_crop")]), StubClassifier())
+    classifier = StubClassifier()
+    engine = InferenceEngine(StubGate([GateDecision(image_type="non_crop")]), classifier)
     result = engine.predict(validated_image(), crop_hint="Onion")
     assert result.imageType == "non_crop"
     assert result.crop is None
@@ -44,6 +45,7 @@ def test_non_crop_forces_all_non_applicable_fields_even_with_onion_hint():
     assert result.condition is None
     assert result.confidence is None
     assert result.messageCode == "NON_CROP"
+    assert classifier.calls == 0
 
 
 def test_harvested_onion_never_reaches_leaf_disease_classifier():
@@ -59,10 +61,38 @@ def test_harvested_onion_never_reaches_leaf_disease_classifier():
     assert classifier.calls == 0
 
 
-def test_living_supported_crop_reaches_disease_model_once():
+def test_harvested_without_crop_name_stays_harvested():
     classifier = StubClassifier()
     engine = InferenceEngine(
-        StubGate([GateDecision(image_type="living_crop", crop="Tomato")]), classifier
+        StubGate([GateDecision(image_type="harvested_produce", crop=None, weak=True)]), classifier
+    )
+    result = engine.predict(validated_image())
+    assert result.imageType == "harvested_produce"
+    assert result.crop is None
+    assert result.messageCode == "HARVESTED_PRODUCE"
+    assert classifier.calls == 0
+
+
+def test_living_supported_but_not_screenable_does_not_reach_disease_model():
+    classifier = StubClassifier()
+    engine = InferenceEngine(
+        StubGate([GateDecision(image_type="living_crop", crop="Tomato", screenable=False)]),
+        classifier,
+    )
+    result = engine.predict(validated_image())
+    assert classifier.calls == 0
+    assert result.imageType == "living_crop"
+    assert result.crop == "Tomato"
+    assert result.assessment == "condition_unclear"
+    assert result.condition is None
+    assert result.messageCode == "UNCLEAR"
+
+
+def test_living_supported_screenable_crop_reaches_disease_model_once():
+    classifier = StubClassifier()
+    engine = InferenceEngine(
+        StubGate([GateDecision(image_type="living_crop", crop="Tomato", screenable=True)]),
+        classifier,
     )
     result = engine.predict(validated_image())
     assert classifier.calls == 1
@@ -71,10 +101,25 @@ def test_living_supported_crop_reaches_disease_model_once():
     assert result.confidence is None
 
 
+def test_living_soybean_screenable_can_reach_supported_classifier():
+    classifier = StubClassifier(
+        DiseaseDecision(crop="Soybean", healthy=True, weak=False, model_id="test-local-leaf")
+    )
+    engine = InferenceEngine(
+        StubGate([GateDecision(image_type="living_crop", crop="Soybean", screenable=True)]),
+        classifier,
+    )
+    result = engine.predict(validated_image())
+    assert classifier.calls == 1
+    assert result.crop == "Soybean"
+    assert result.assessment == "healthy"
+
+
 def test_living_onion_is_safely_unsupported_without_checkpoint():
     classifier = StubClassifier()
     engine = InferenceEngine(
-        StubGate([GateDecision(image_type="living_crop", crop="Onion")]), classifier
+        StubGate([GateDecision(image_type="living_crop", crop="Onion", screenable=True)]),
+        classifier,
     )
     result = engine.predict(validated_image())
     assert result.messageCode == "UNSUPPORTED_CROP"
@@ -98,7 +143,8 @@ def test_healthy_plant_does_not_force_a_condition():
         DiseaseDecision(crop="Tomato", healthy=True, weak=False, model_id="test-local-leaf")
     )
     engine = InferenceEngine(
-        StubGate([GateDecision(image_type="living_crop", crop="Tomato")]), classifier
+        StubGate([GateDecision(image_type="living_crop", crop="Tomato", screenable=True)]),
+        classifier,
     )
     result = engine.predict(validated_image())
     assert result.assessment == "healthy"

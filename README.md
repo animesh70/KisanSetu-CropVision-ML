@@ -10,11 +10,15 @@ working crop-photo workflow during this development task.
 
 ```text
 browser -> future KisanSetu backend -> CropVision /predict
-image bytes -> format/size/pixel validation -> local SigLIP relevance gate
+image bytes -> format/size/pixel validation -> local SigLIP hierarchical gate
+  Stage A: agricultural vs non_crop
+  Stage B: harvested_produce vs living_crop
+  Stage C: image-based crop naming (Onion/Tomato/Potato/Soybean or abstain)
   non_crop              -> no crop or condition
   harvested_produce     -> no leaf-disease classifier
   crop_related_unclear  -> abstain
-  living_crop           -> image-based crop gate -> supported leaf classifier
+  living_crop           -> Stage D disease-screenability check
+                           -> only screenable supported crops reach leaf classifier
                            -> healthy / possible condition / abstain
 ```
 
@@ -24,7 +28,8 @@ hashes, and randomness are never used for diagnosis. Public `confidence` is
 always `null`: an uncalibrated softmax score is not a disease-confidence
 percentage. The conservative thresholds are heuristic abstention thresholds,
 not clinical/agronomic validation. Poor lighting, blur, or small subjects may
-return `crop_related_unclear`.
+return `crop_related_unclear` or prevent disease screening while preserving a
+clear harvested/living image type.
 
 ## Models, classes, and licenses
 
@@ -147,6 +152,22 @@ Future KisanSetu backend variables are `CROP_VISION_URL` and
 `CROP_VISION_API_KEY`; the browser must call the **KisanSetu backend**, which
 then calls this service. The ML key must remain server-side. This repository
 does not edit or deploy the main KisanSetu application.
+
+## Relevance and disease-routing safety
+
+CropVision uses one cached SigLIP model in a hierarchical gate rather than a flat
+four-class prompt competition. It first decides agricultural vs non-crop, then
+harvested produce vs living crop, then identifies a supported crop name.
+`crop_related_unclear` is an abstention state, not a semantic prompt class. For
+living crops, a final screenability gate checks whether sufficiently clear leaf or
+stem detail is present before the PlantVillage-style disease classifier may run.
+This keeps fruit-dominant or distant living-plant photographs from being forced
+through a leaf-disease model. Crop-name failure never rewrites an otherwise clear
+harvested/living image type.
+
+Use `python scripts/evaluate_gate.py --dir <folder>` with local model checkpoints
+to inspect prompt logits, stage shares, routing decisions, and the public result.
+The script never needs or prints the service API key.
 
 ## Limitations and disclaimer
 

@@ -1,4 +1,4 @@
-"""Visual gate owns relevance; leaf classification is gated behind living-crop evidence."""
+"""Visual gate owns relevance; leaf classification requires screenable living-crop evidence."""
 
 from __future__ import annotations
 
@@ -30,7 +30,6 @@ class InferenceEngine:
 
     def predict(self, validated: ValidatedImage, crop_hint: str | None = None) -> Prediction:
         # crop_hint is deliberately not used to assign or overwrite any visual result.
-        # It remains optional request metadata for a future, validated crop-specific gate.
         _ = crop_hint
         decision = self.gate.screen(validated.rgb, quality_weak=validated.quality_weak)
         identity = ModelIdentity(gate=self.gate.model_id)
@@ -62,6 +61,8 @@ class InferenceEngine:
                 messageCode="HARVESTED_PRODUCE",
                 model=identity,
             )
+
+        # Living crops retain their image type even when exact crop naming abstains.
         if decision.crop is None:
             return Prediction(
                 imageType="living_crop",
@@ -71,6 +72,9 @@ class InferenceEngine:
                 messageCode="UNCLEAR",
                 model=identity,
             )
+
+        # Onion has no verified disease checkpoint, and unsupported crops never reach the
+        # PlantVillage-style classifier even when the image is otherwise screenable.
         if decision.crop == "Onion" or decision.crop not in self.classifier.supported_crops:
             return Prediction(
                 imageType="living_crop",
@@ -78,6 +82,18 @@ class InferenceEngine:
                 assessment="condition_unclear",
                 condition=None,
                 messageCode="UNSUPPORTED_CROP",
+                model=identity,
+            )
+
+        # A supported crop is still not enough: the leaf classifier only sees images with
+        # adequate disease-screening detail.
+        if decision.screenable is not True:
+            return Prediction(
+                imageType="living_crop",
+                crop=decision.crop,
+                assessment="condition_unclear",
+                condition=None,
+                messageCode="UNCLEAR",
                 model=identity,
             )
 

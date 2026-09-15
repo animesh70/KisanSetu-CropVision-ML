@@ -39,6 +39,8 @@ class GateDecision(BaseModel):
     image_type: ImageType
     crop: str | None = None
     weak: bool = False
+    # Internal-only routing hint. Public API remains unchanged.
+    screenable: bool | None = None
 
 
 class DiseaseDecision(BaseModel):
