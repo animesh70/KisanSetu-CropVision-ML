@@ -117,8 +117,8 @@ those passing tests alone do **not** establish real-world gate accuracy.
 ## Modal CPU deployment
 
 The current `modal_app.py` uses Modal ASGI, a Debian Slim Python 3.11 image,
-downloaded checkpoints during image build, scale-to-zero serving, **1 CPU and
-2048 MiB RAM**, with no GPU. The image build needs public Hugging Face network
+PyTorch's CPU-only wheels, downloaded checkpoints during image build,
+scale-to-zero serving, **1 CPU and 2048 MiB RAM**, with no GPU. The image build needs public Hugging Face network
 access. Create a Modal secret named `kisansetu-ml-api-key` containing
 `KISANSETU_ML_API_KEY` before deployment. Do not put the key in Git, a browser,
 or a `VITE_*` variable. Check authentication and CLI syntax, then deploy:
@@ -130,10 +130,16 @@ or a `VITE_*` variable. Check authentication and CLI syntax, then deploy:
 .venv\Scripts\modal.exe deploy modal_app.py
 ```
 
-Replace the placeholder privately; never paste a real key into chat. If no
-Modal profile is authenticated, deployment is pending rather than assumed.
-After actual deployment, verify the generated URL with `/health` and an
-authenticated `/predict` request. The 2 GiB starting memory may need measured
+Replace the placeholder privately; never paste a real key into chat. The
+local copy for this deployment is in the Git-ignored `.env` file, not in
+`.env.example` or Git history. If rotating the key, use `modal secret create
+--force` and update the local private copy too.
+
+The service was deployed to the `animesh70` Modal workspace on 2026-09-15 at
+`https://animesh70--kisansetu-cropvision-ml-fastapi-service.modal.run`.
+`GET /health` returned HTTP 200; an authenticated synthetic-image `/predict`
+returned HTTP 200 with safe `UNCLEAR` and null confidence; the same request
+without a key returned HTTP 401. The 2 GiB starting memory may need measured
 adjustment because SigLIP plus Python/PyTorch memory can exceed weight size.
 Modal scale-to-zero and model download make cold starts slower than warm calls.
 
