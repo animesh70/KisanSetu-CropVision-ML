@@ -86,7 +86,11 @@ class SiglipRelevanceGate:
     def _logits(self, image: Image.Image, prompts: list[str]) -> list[float]:
         import torch
 
-        inputs = self.processor(text=prompts, images=image, padding=True, return_tensors="pt")
+        # SigLIP was trained on fixed-length text; dynamic batch padding changes
+        # the score of a prompt depending on the other prompts in its batch.
+        inputs = self.processor(
+            text=prompts, images=image, padding="max_length", truncation=True, return_tensors="pt"
+        )
         with torch.inference_mode():
             scores = self.model(**inputs).logits_per_image[0]
         return [float(value) for value in scores]
